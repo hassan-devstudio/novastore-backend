@@ -1,29 +1,35 @@
 import { Request, Response, NextFunction } from "express";
 import asyncHandler from "express-async-handler";
+import * as yup from "yup";
+
+// 1. import the validation schema rules
+import { registerSchema } from "../validators/userValidator.js";
 
 export const registerUser = asyncHandler((async (
   req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  // 1. Extract registration data from request body
-  const { firstName, lastName, email, password } = req.body;
+  try {
+    // 2. Validate the request body
+    // abortEarly: false forces Yup to check ALL fields, not just stop at the first error
+    const validatedBody = await registerSchema.validate(req.body, {
+      abortEarly: false,
+    });
 
-  // 2. Track missing fields for granular validation feedback
-  const missingFields: string[] = [];
+    // 3. Proceed with user registration logic if validation passes
+    res.status(200).json({
+      message: "Register user success",
+      data: validatedBody,
+    });
+  } catch (error) {
+    // 4. Catch Yup validation errors and format them neatly
+    if (error instanceof yup.ValidationError) {
+      res.status(400);
+      return next(new Error(`Validation Error: ${error.errors.join(", ")}`));
+    }
 
-  if (!firstName) missingFields.push("First name");
-  if (!lastName) missingFields.push("Last name");
-  if (!email) missingFields.push("Email");
-  if (!password) missingFields.push("Password");
-
-  // 3. If any fields are missing, halt execution and trigger error middleware
-  if (missingFields.length > 0) {
-    // Creates a readable message like: "Missing fields: First name, Last name"
-    const errorMessage = `Validation Error: Missing required fields ${missingFields.join(", ")}`;
-    return next(new Error(errorMessage));
+    // Pass any other unexpected server errors to Express handler
+    return next(error);
   }
-
-  // 4. Proceed with user registration logic if validation passes
-  res.status(200).json({ message: "Register user" });
 }) as any);
