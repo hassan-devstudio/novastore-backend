@@ -5,9 +5,10 @@ import {
   logoutUser,
   registerUser,
   updateUser,
+  getCurrentUser,
+  changePassword,
 } from "../controllers/userController.js";
 import validateToken from "../middleware/validateTokenHandler.js";
-import { getCurrentUser } from "../controllers/userController.js";
 
 const router = express.Router();
 
@@ -36,5 +37,8 @@ router.delete("/account", validateToken, deleteUser);
 
 // Get the current user
 router.get("/me", validateToken, getCurrentUser);
+
+// change password
+router.patch("/change-password", validateToken, changePassword);
 
 export default router;

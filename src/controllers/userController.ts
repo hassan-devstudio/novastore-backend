@@ -3,6 +3,7 @@ import * as yup from "yup";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import {
+  changePasswordSchema,
   loginSchema,
   profileSchema,
   registerSchema,
@@ -214,6 +215,59 @@ export const getCurrentUser = async (
       },
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+export const changePassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // Validate the current and new password from the request body
+    const { currentPassword, newPassword } =
+      await changePasswordSchema.validate(req.body, {
+        abortEarly: false,
+        stripUnknown: true,
+      });
+
+    // Find the logged-in user using the user ID from the JWT
+    const user = await User.findById(req.user.userId);
+
+    // Make sure the user still exists
+    if (!user) {
+      return next(new AppError("User not found", constants.NOT_FOUND));
+    }
+
+    // Compare the current password with the hashed password stored in the database
+    const passwordMatch = await bcrypt.compare(currentPassword, user.password);
+
+    // Reject the request if the current password is incorrect
+    if (!passwordMatch) {
+      return next(
+        new AppError("Current password is incorrect", constants.UNAUTHORIZED),
+      );
+    }
+
+    // Hash the new password before saving it to the database
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Replace the old password with the new hashed password
+    user.password = hashedPassword;
+    await user.save();
+
+    // Send a success response after the password has been updated
+    res.status(constants.OK).json({
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    // Convert Yup validation errors into our standard AppError
+    if (error instanceof yup.ValidationError) {
+      return next(validationError(error));
+    }
+
+    // Pass unexpected errors to the global error handler
     next(error);
   }
 };
