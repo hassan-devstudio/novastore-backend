@@ -34,14 +34,23 @@ const validateToken = asyncHandler((async (
   const token = authHeader.split(" ")[1];
 
   try {
-    // Verify the token using the secret key stored in environment variables
+    // Verify the token using the same secret used when the token was created.
     const decoded = await verifyToken(
       token,
-      process.env.ACCESS_TOKEN_SECRET as string,
+      process.env.JWT_SECRET as string,
     );
 
-    // Attach the logged-in user's information to the request object
-    (req as any).user = (decoded as JwtPayload).user || decoded;
+    if (typeof decoded === "string" || typeof decoded.userId !== "string") {
+      const error: any = new Error("User is not authorized or token is invalid");
+      error.statusCode = constants.UNAUTHORIZED;
+      throw error;
+    }
+
+    // Attach the verified user's information to the typed request object.
+    req.user = {
+      userId: decoded.userId,
+      email: typeof decoded.email === "string" ? decoded.email : undefined,
+    };
 
     // Proceed to the next middleware or controller function
     next();
