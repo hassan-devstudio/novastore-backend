@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import asyncHandler from "express-async-handler";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { promisify } from "util";
 import constants from "../constants/constants.js";
@@ -16,7 +15,7 @@ const verifyToken = promisify(jwt.verify) as (
  * Extracts the token from the Bearer header, verifies it securely,
  * and attaches the decoded user payload to the request object.
  */
-const validateToken = asyncHandler((async (
+const validateToken = async (
   req: Request,
   res: Response,
   next: NextFunction,
@@ -60,6 +59,6 @@ const validateToken = asyncHandler((async (
       constants.UNAUTHORIZED,
     );
   }
-}) as any);
+};
 
 export default validateToken;

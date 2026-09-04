@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import asyncHandler from "express-async-handler";
 import * as yup from "yup";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -18,47 +17,49 @@ const validationError = (error: yup.ValidationError) =>
     constants.BAD_REQUEST,
   );
 
-export const registerUser = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { firstName, lastName, email, password } =
-        await registerSchema.validate(req.body, { abortEarly: false });
+export const registerUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { firstName, lastName, email, password } =
+      await registerSchema.validate(req.body, { abortEarly: false });
 
-      const userAvailable = await User.findOne({ email });
-      if (userAvailable) {
-        return next(
-          new AppError(
-            "User already registered with this email",
-            constants.BAD_REQUEST,
-          ),
-        );
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const createdUser = await User.create({
-        firstName,
-        lastName,
-        email,
-        password: hashedPassword,
-      });
-
-      res.status(constants.CREATED).json({
-        message: "User registered successfully",
-        data: {
-          id: createdUser._id,
-          firstName: createdUser.firstName,
-          lastName: createdUser.lastName,
-          email: createdUser.email,
-        },
-      });
-    } catch (error) {
-      if (error instanceof yup.ValidationError) {
-        return next(validationError(error));
-      }
-      return next(error);
+    const userAvailable = await User.findOne({ email });
+    if (userAvailable) {
+      return next(
+        new AppError(
+          "User already registered with this email",
+          constants.BAD_REQUEST,
+        ),
+      );
     }
-  },
-);
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const createdUser = await User.create({
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
+    });
+
+    res.status(constants.CREATED).json({
+      message: "User registered successfully",
+      data: {
+        id: createdUser._id,
+        firstName: createdUser.firstName,
+        lastName: createdUser.lastName,
+        email: createdUser.email,
+      },
+    });
+  } catch (error) {
+    if (error instanceof yup.ValidationError) {
+      return next(validationError(error));
+    }
+    return next(error);
+  }
+};
 
 export const loginUser = async (
   req: Request,
