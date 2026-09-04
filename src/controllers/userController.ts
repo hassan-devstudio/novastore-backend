@@ -5,7 +5,11 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 // 1. Import dependencies
-import { loginSchema, registerSchema } from "../validators/userValidator.js";
+import {
+  loginSchema,
+  profileSchema,
+  registerSchema,
+} from "../validators/userValidator.js";
 import { User } from "../models/userModel.js";
 import constants from "../constants/constants.js";
 
@@ -138,4 +142,71 @@ export const logoutUser = (req: Request, res: Response): void => {
   res.status(constants.OK).json({
     message: "Logout successful",
   });
+};
+
+export const updateUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    console.log('user----',req.user)
+    // Validate and sanitize the profile data sent by the user.
+    // Only fields defined in profileSchema will be accepted.
+    const { phone, address, avatar } = await profileSchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    // Update the profile of the currently authenticated user.
+    // The user ID should come from the verified JWT, not from req.body.
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      {
+        phone,
+        address,
+        avatar,
+      },
+      {
+        // Return the updated document instead of the old document.
+        new: true,
+
+        // Run Mongoose schema validators before saving the update.
+        runValidators: true,
+      },
+    );
+
+    // The authenticated user could not be found in the database.
+    if (!user) {
+      return next(new Error("User not found"));
+    }
+
+    // Return the updated profile information.
+    // Never return sensitive fields such as the password/hash.
+    res.status(constants.OK).json({
+      message: "Profile updated successfully",
+      data: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        avatar: user.avatar,
+      },
+    });
+  } catch (error) {
+    // Handle Yup validation errors separately and return
+    // a client-friendly 400 Bad Request response.
+    if (error instanceof yup.ValidationError) {
+      res.status(constants.VALIDATION_ERROR);
+
+      return next(
+        new Error(`Validation Error: ${error.errors.join(", ")}`),
+      );
+    }
+
+    // Forward unexpected errors to the global error handler.
+    next(error);
+  }
 };

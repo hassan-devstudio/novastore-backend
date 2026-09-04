@@ -26,3 +26,23 @@ export const loginSchema = yup.object({
 
   password: yup.string().required("Password is required."),
 });
+
+
+// Schema used when updating the authenticated user's profile
+export const profileSchema = yup.object({
+  phone: yup
+    .string()
+    .trim()
+    .optional(),
+
+  address: yup
+    .string()
+    .trim()
+    .optional(),
+
+  avatar: yup
+    .string()
+    .trim()
+    .url("Avatar must be a valid URL")
+    .optional(),
+});

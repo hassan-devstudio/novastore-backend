@@ -23,6 +23,19 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true, // Simply ensures a password string is physically stored
     },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    address: {
+      type: String,
+      trim: true,
+    },
+
+    avatar: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true, // Automatically manages createdAt and updatedAt fields
