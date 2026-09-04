@@ -85,7 +85,8 @@ export const loginUser = async (
     // Use the same error message for both invalid email
     // and invalid password to avoid revealing account information.
     if (!user) {
-      return next(new Error("Invalid email or password"));
+      res.status(constants.NOT_FOUND);
+      return next(new Error("User not found"));
     }
 
     // Compare the plain-text password with the stored bcrypt hash.
