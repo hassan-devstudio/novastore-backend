@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import errorHandler from "./src/middleware/errorHandler.js";
 import connectDB from "./src/config/dbConnect.js";
 import userRoutes from "./src/routes/userRoutes.js";
+import AppError from "./src/utils/AppError.js";
 
 // Load environment variables before any configuration
 dotenv.config();
@@ -25,9 +26,7 @@ app.use("/api/users", userRoutes);
 
 // Catch-all 404 Not Found (Must be placed AFTER all valid routes)
 app.use((req, res, next) => {
-  const error = new Error(`Not Found - ${req.originalUrl}`);
-  res.status(404);
-  next(error);
+  next(new AppError(`Not Found - ${req.originalUrl}`, 404));
 });
 
 // Centralized error handler (Must be the last middleware)

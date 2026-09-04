@@ -23,7 +23,7 @@ const errorHandler = (
 
   // Handle Mongoose schema validation failures and extract individual error messages
   if (err.name === "ValidationError") {
-    statusCode = constants.VALIDATION_ERROR;
+    statusCode = constants.BAD_REQUEST;
     err.message = Object.values(
       err.errors as Record<string, { message: string }>,
     )
@@ -31,49 +31,20 @@ const errorHandler = (
       .join(", ");
   }
 
-  // Send a structured JSON error response based on the resolved HTTP status code
-  switch (statusCode) {
-    case constants.VALIDATION_ERROR:
-      res.status(statusCode).json({
-        title: "Validation Failed",
-        message: err.message,
-        stackTrace: err.stack,
-      });
-      break;
+  const titleByStatus: Record<number, string> = {
+    [constants.BAD_REQUEST]: "Validation Failed",
+    [constants.UNAUTHORIZED]: "Unauthorized",
+    [constants.FORBIDDEN]: "Forbidden",
+    [constants.NOT_FOUND]: "Not Found",
+    [constants.SERVER_ERROR]: "Server Error",
+  };
 
-    case constants.UNAUTHORIZED:
-      res.status(statusCode).json({
-        title: "Unauthorized",
-        message: err.message,
-        stackTrace: err.stack,
-      });
-      break;
-
-    case constants.FORBIDDEN:
-      res.status(statusCode).json({
-        title: "Forbidden",
-        message: err.message,
-        stackTrace: err.stack,
-      });
-      break;
-
-    case constants.NOT_FOUND:
-      res.status(statusCode).json({
-        title: "Not Found",
-        message: err.message,
-        stackTrace: err.stack,
-      });
-      break;
-
-    case constants.SERVER_ERROR:
-    default:
-      res.status(statusCode).json({
-        title: "Server Error",
-        message: err.message || "Internal Server Error",
-        stackTrace: err.stack,
-      });
-      break;
-  }
+  // Send a consistent response that frontend clients can handle.
+  res.status(statusCode).json({
+    statusCode,
+    title: titleByStatus[statusCode] || "Error",
+    message: err.message || "Internal Server Error",
+  });
 };
 
 export default errorHandler;
