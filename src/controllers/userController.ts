@@ -2,9 +2,10 @@ import { Request, Response, NextFunction } from "express";
 import asyncHandler from "express-async-handler";
 import * as yup from "yup";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 // 1. Import dependencies
-import { registerSchema } from "../validators/userValidator.js";
+import { loginSchema, registerSchema } from "../validators/userValidator.js";
 import { User } from "../models/userModel.js";
 import constants from "../constants/constants.js";
 
@@ -61,3 +62,80 @@ export const registerUser = asyncHandler((async (
     return next(error);
   }
 }) as any);
+
+export const loginUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // Validate and sanitize the login request.
+    const { email, password } = await loginSchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    // Find the user by email.
+    const user = await User.findOne({ email });
+
+    // Use the same error message for both invalid email
+    // and invalid password to avoid revealing account information.
+    if (!user) {
+      return next(new Error("Invalid email or password"));
+    }
+
+    // Compare the plain-text password with the stored bcrypt hash.
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+      return next(new Error("Invalid email or password"));
+    }
+
+    // Generate a JWT after successful authentication.
+    const token = jwt.sign(
+      {
+        userId: user._id.toString(),
+        email: user.email,
+      },
+      process.env.JWT_SECRET!,
+      {
+        expiresIn: "1h",
+      },
+    );
+
+    // Return the JWT and safe user information.
+    // Never return the password or password hash.
+    res.status(constants.OK).json({
+      message: "Login successful",
+      data: {
+        token,
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+        },
+      },
+    });
+  } catch (error) {
+    // Handle Yup validation errors.
+    if (error instanceof yup.ValidationError) {
+      res.status(constants.FORBIDDEN);
+
+      return next(new Error(`Validation Error: ${error.errors.join(", ")}`));
+    }
+
+    // Forward unexpected errors to the global error handler.
+    next(error);
+  }
+};
+
+export const logoutUser = (req: Request, res: Response): void => {
+  // Remove the authentication cookie from the browser.
+  res.clearCookie("accessToken");
+
+  // Tell the client that logout was successful.
+  res.status(constants.OK).json({
+    message: "Logout successful",
+  });
+};
