@@ -1,17 +1,36 @@
 import express from "express";
-import { loginUser, logoutUser, registerUser, updateUser } from "../controllers/userController.js";
+import {
+  deleteUser,
+  loginUser,
+  logoutUser,
+  registerUser,
+  updateUser,
+} from "../controllers/userController.js";
 import validateToken from "../middleware/validateTokenHandler.js";
+
 const router = express.Router();
 
-// Register a new user
+// ==========================================
+// Public Auth Routes
+// ==========================================
+
+// Create a new user account
 router.post("/register", registerUser);
 
-// Authenticate and log in a user
+// Authenticate user and issue token/cookie
 router.post("/login", loginUser);
 
-//    Remove the authentication cookie from the browser.
+// Clear authentication token/cookie from client
 router.post("/logout", logoutUser);
 
+// ==========================================
+// Protected User Routes
+// ==========================================
+
+// Update specific fields of the user profile
 router.patch("/profile", validateToken, updateUser);
+
+// Permanently delete user account
+router.delete("/account", validateToken, deleteUser);
 
 export default router;

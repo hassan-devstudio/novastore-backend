@@ -150,7 +150,6 @@ export const updateUser = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    console.log('user----',req.user)
     // Validate and sanitize the profile data sent by the user.
     // Only fields defined in profileSchema will be accepted.
     const { phone, address, avatar } = await profileSchema.validate(req.body, {
@@ -201,12 +200,57 @@ export const updateUser = async (
     if (error instanceof yup.ValidationError) {
       res.status(constants.VALIDATION_ERROR);
 
-      return next(
-        new Error(`Validation Error: ${error.errors.join(", ")}`),
-      );
+      return next(new Error(`Validation Error: ${error.errors.join(", ")}`));
     }
 
     // Forward unexpected errors to the global error handler.
+    next(error);
+  }
+};
+
+export const deleteUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // Get password from the request body.
+    // If no body was sent, use an empty object.
+    const { password } = req.body || {};
+
+    // Password is required to delete the account.
+    if (!password) {
+      res.status(constants.NOT_FOUND);
+      return next(new Error("Password is required"));
+    }
+
+    // Find the authenticated user using the ID from the verified JWT.
+    const user = await User.findById(req.user.userId);
+
+    // Check whether the user exists.
+    if (!user) {
+      res.status(constants.NOT_FOUND);
+      return next(new Error("User not found"));
+    }
+
+    // Compare the provided password with the hashed password in the database.
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    // Stop if the password is incorrect.
+    if (!passwordMatch) {
+      res.status(constants.UNAUTHORIZED);
+      return next(new Error("Invalid password"));
+    }
+
+    // Delete the authenticated user's account.
+    await User.findByIdAndDelete(req.user.userId);
+
+    // Send a success response.
+    res.status(constants.OK).json({
+      message: "User account deleted successfully",
+    });
+  } catch (error) {
+    // Pass unexpected errors to the global error handler.
     next(error);
   }
 };
