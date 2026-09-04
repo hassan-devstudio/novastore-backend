@@ -186,3 +186,33 @@ export const deleteUser = async (
     next(error);
   }
 };
+
+export const getCurrentUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // Get the logged-in user's ID from the verified JWT.
+    const user = await User.findById(req.user.userId).select("-password");
+
+    if (!user) {
+      return next(new AppError("User not found", constants.NOT_FOUND));
+    }
+
+    res.status(constants.OK).json({
+      message: "Current user fetched successfully",
+      data: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        avatar: user.avatar,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

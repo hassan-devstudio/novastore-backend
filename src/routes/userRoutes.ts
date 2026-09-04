@@ -7,6 +7,7 @@ import {
   updateUser,
 } from "../controllers/userController.js";
 import validateToken from "../middleware/validateTokenHandler.js";
+import { getCurrentUser } from "../controllers/userController.js";
 
 const router = express.Router();
 
@@ -32,5 +33,8 @@ router.patch("/profile", validateToken, updateUser);
 
 // Permanently delete user account
 router.delete("/account", validateToken, deleteUser);
+
+// Get the current user
+router.get("/me", validateToken, getCurrentUser);
 
 export default router;
