@@ -13,6 +13,7 @@ import { User } from "../models/userModel.js";
 import constants from "../constants/constants.js";
 import AppError from "../utils/AppError.js";
 import sendEmail from "../utils/sendEmail.js";
+import passwordResetEmail from "../utils/passwordResetEmail.js";
 
 const validationError = (error: yup.ValidationError) =>
   new AppError(
@@ -306,10 +307,12 @@ export const forgotPassword = async (
     // TODO: Store the OTP securely in the database
     // We will add this when creating the password reset model.
 
+    const emailHtml = passwordResetEmail(user.firstName, otp);
+
     await sendEmail(
       user.email,
-      "NovaStore Password Reset OTP",
-      `Your password reset OTP is: ${otp}. This OTP will expire in 10 minutes.`,
+      "Your NovaStore Password Reset Code",
+      emailHtml,
     );
     res.status(constants.OK).json({
       message:

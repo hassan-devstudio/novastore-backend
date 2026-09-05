@@ -1,23 +1,33 @@
 import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const emailUser = process.env.EMAIL_USER;
+const emailPassword = process.env.EMAIL_PASSWORD;
+
+if (!emailUser || !emailPassword) {
+  throw new Error("EMAIL_USER and EMAIL_PASSWORD must be defined in .env");
+}
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
+    user: emailUser,
+    pass: emailPassword,
   },
 });
 
 const sendEmail = async (
   email: string,
   subject: string,
-  message: string,
+  html: string,
 ): Promise<void> => {
   await transporter.sendMail({
-    from: process.env.EMAIL_USER,
+    from: emailUser,
     to: email,
     subject,
-    text: message,
+    html,
   });
 };
 
