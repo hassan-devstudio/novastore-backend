@@ -1,4 +1,5 @@
 import express from "express";
+
 import {
   deleteUser,
   loginUser,
@@ -11,42 +12,51 @@ import {
   resetPassword,
   verifyResetOtp,
 } from "../controllers/userController.js";
+
 import validateToken from "../middleware/validateTokenHandler.js";
 
 const router = express.Router();
 
 // ==========================================
-// Public Auth Routes
+// Public Authentication Routes
 // ==========================================
 
-// Create a new user account
+// Register a new user account
 router.post("/register", registerUser);
 
-// Authenticate user and issue token/cookie
+// Login user and issue an authentication token
 router.post("/login", loginUser);
 
-// Clear authentication token/cookie from client
+// Logout user and clear the authentication token
 router.post("/logout", logoutUser);
 
 // ==========================================
 // Protected User Routes
 // ==========================================
 
-// Update specific fields of the user profile
-router.patch("/profile", validateToken, updateUser);
-
-// Permanently delete user account
-router.delete("/account", validateToken, deleteUser);
-
-// Get the current user
+// Get the currently authenticated user's details
 router.get("/me", validateToken, getCurrentUser);
 
-// change password
+// Update the authenticated user's profile
+router.patch("/profile", validateToken, updateUser);
+
+// Change the authenticated user's password
 router.patch("/change-password", validateToken, changePassword);
 
-// forgot-password
+// Permanently delete the authenticated user's account
+router.delete("/account", validateToken, deleteUser);
+
+// ==========================================
+// Password Recovery Routes
+// ==========================================
+
+// Send a password-reset OTP to the user's email
 router.post("/forgot-password", forgotPassword);
+
+// Verify the OTP and receive a temporary reset token
 router.post("/verify-reset-otp", verifyResetOtp);
+
+// Set a new password using the temporary reset token
 router.post("/reset-password", resetPassword);
 
 export default router;
