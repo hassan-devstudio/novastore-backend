@@ -8,6 +8,8 @@ import {
   getCurrentUser,
   changePassword,
   forgotPassword,
+  resetPassword,
+  verifyResetOtp,
 } from "../controllers/userController.js";
 import validateToken from "../middleware/validateTokenHandler.js";
 
@@ -43,6 +45,8 @@ router.get("/me", validateToken, getCurrentUser);
 router.patch("/change-password", validateToken, changePassword);
 
 // forgot-password
-router.post("/forgotPassword", forgotPassword);
+router.post("/forgot-password", forgotPassword);
+router.post("/verify-reset-otp", verifyResetOtp);
+router.post("/reset-password", resetPassword);
 
 export default router;

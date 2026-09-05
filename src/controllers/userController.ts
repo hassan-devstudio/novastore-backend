@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { randomBytes, randomInt } from "node:crypto";
 import * as yup from "yup";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -8,8 +9,11 @@ import {
   loginSchema,
   profileSchema,
   registerSchema,
+  resetPasswordSchema,
+  verifyResetOtpSchema,
 } from "../validators/userValidator.js";
 import { User } from "../models/userModel.js";
+import { PasswordReset } from "../models/passwordResetModel.js";
 import constants from "../constants/constants.js";
 import AppError from "../utils/AppError.js";
 import sendEmail from "../utils/sendEmail.js";
@@ -299,13 +303,20 @@ export const forgotPassword = async (
       return;
     }
 
-    // Generate a 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate a cryptographically secure 6-digit OTP.
+    const otp = randomInt(100000, 1000000).toString();
 
     // OTP will expire after 10 minutes
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    // TODO: Store the OTP securely in the database
-    // We will add this when creating the password reset model.
+
+    // Keep only the newest pending request and never store the OTP itself.
+    await PasswordReset.deleteMany({ userId: user._id, verified: false });
+    const hashedOtp = await bcrypt.hash(otp, 10);
+    await PasswordReset.create({
+      userId: user._id,
+      otp: hashedOtp,
+      otpExpiresAt,
+    });
 
     const emailHtml = passwordResetEmail(user.firstName, otp);
 
@@ -317,6 +328,148 @@ export const forgotPassword = async (
     res.status(constants.OK).json({
       message:
         "If an account exists with this email, a verification code has been sent.",
+    });
+  } catch (error) {
+    // Convert Yup validation errors into our standard AppError
+    if (error instanceof yup.ValidationError) {
+      return next(validationError(error));
+    }
+
+    // Pass unexpected errors to the global error handler
+    next(error);
+  }
+};
+
+export const verifyResetOtp = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // Validate the email and six-digit OTP sent to the user.
+    const { email, otp } = await verifyResetOtpSchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    // Resolve the account without exposing whether the email is registered.
+    const user = await User.findOne({ email });
+    if (!user) {
+      return next(
+        new AppError("Invalid or expired OTP", constants.UNAUTHORIZED),
+      );
+    }
+
+    // Only the newest pending reset request can be used.
+    const resetRequest = await PasswordReset.findOne({
+      userId: user._id,
+      verified: false,
+    }).sort({ createdAt: -1 });
+
+    // Reject expired requests before checking the submitted OTP.
+    if (!resetRequest || resetRequest.otpExpiresAt < new Date()) {
+      return next(
+        new AppError("Invalid or expired OTP", constants.UNAUTHORIZED),
+      );
+    }
+
+    // Limit guesses and compare against the bcrypt hash stored in MongoDB.
+    if (resetRequest.attempts >= 5) {
+      return next(
+        new AppError("Too many OTP attempts", constants.UNAUTHORIZED),
+      );
+    }
+
+    const otpMatches = await bcrypt.compare(otp, resetRequest.otp);
+    if (!otpMatches) {
+      resetRequest.attempts += 1;
+      await resetRequest.save();
+      return next(new AppError("Invalid OTP", constants.UNAUTHORIZED));
+    }
+
+    // Consume the OTP and issue a separate short-lived reset token.
+    resetRequest.verified = true;
+    const resetToken = randomBytes(32).toString("hex");
+    resetRequest.resetTokenHash = await bcrypt.hash(resetToken, 10);
+    resetRequest.resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await resetRequest.save();
+
+    res.status(constants.OK).json({
+      message: "OTP verified successfully",
+      data: { resetToken },
+    });
+  } catch (error) {
+    if (error instanceof yup.ValidationError) {
+      return next(validationError(error));
+    }
+    next(error);
+  }
+};
+export const resetPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // Validate the email, reset token, and new password
+    const { email, resetToken, newPassword } =
+      await resetPasswordSchema.validate(req.body, {
+        abortEarly: false,
+        stripUnknown: true,
+      });
+
+    // Find the user associated with the reset request
+    const user = await User.findOne({ email });
+
+    // Stop if the user does not exist
+    if (!user) {
+      return next(
+        new AppError("Invalid or expired reset token", constants.UNAUTHORIZED),
+      );
+    }
+
+    // Find the latest verified password reset request for this user
+    const resetRequest = await PasswordReset.findOne({
+      userId: user._id,
+      verified: true,
+    }).sort({ createdAt: -1 });
+
+    // Make sure the reset token exists and has not expired
+    if (
+      !resetRequest?.resetTokenHash ||
+      !resetRequest.resetTokenExpiresAt ||
+      resetRequest.resetTokenExpiresAt < new Date()
+    ) {
+      return next(
+        new AppError("Invalid or expired reset token", constants.UNAUTHORIZED),
+      );
+    }
+
+    // Compare the provided reset token with the hashed token stored in the database
+    const tokenMatches = await bcrypt.compare(
+      resetToken,
+      resetRequest.resetTokenHash,
+    );
+
+    // Reject the request if the token is invalid
+    if (!tokenMatches) {
+      return next(
+        new AppError("Invalid or expired reset token", constants.UNAUTHORIZED),
+      );
+    }
+
+    // Hash the new password before storing it in the database
+    user.password = await bcrypt.hash(newPassword, 10);
+
+    // Save the new password
+    await user.save();
+
+    // Delete the reset request so the token cannot be used again
+    await PasswordReset.deleteOne({ _id: resetRequest._id });
+
+    // Send a success response
+    res.status(constants.OK).json({
+      message: "Password reset successfully",
     });
   } catch (error) {
     // Convert Yup validation errors into our standard AppError
