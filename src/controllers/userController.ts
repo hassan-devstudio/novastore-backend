@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import {
   changePasswordSchema,
+  forgotPasswordSchema,
   loginSchema,
   profileSchema,
   registerSchema,
@@ -11,6 +12,7 @@ import {
 import { User } from "../models/userModel.js";
 import constants from "../constants/constants.js";
 import AppError from "../utils/AppError.js";
+import sendEmail from "../utils/sendEmail.js";
 
 const validationError = (error: yup.ValidationError) =>
   new AppError(
@@ -260,6 +262,58 @@ export const changePassword = async (
     // Send a success response after the password has been updated
     res.status(constants.OK).json({
       message: "Password changed successfully",
+    });
+  } catch (error) {
+    // Convert Yup validation errors into our standard AppError
+    if (error instanceof yup.ValidationError) {
+      return next(validationError(error));
+    }
+
+    // Pass unexpected errors to the global error handler
+    next(error);
+  }
+};
+
+export const forgotPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    // Validate the email from the request body
+    const { email } = await forgotPasswordSchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    // Find the user associated with the email
+    const user = await User.findOne({ email });
+
+    // Don't reveal whether an account exists with this email
+    if (!user) {
+      res.status(constants.OK).json({
+        message:
+          "If an account exists with this email, a verification code has been sent.",
+      });
+      return;
+    }
+
+    // Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // OTP will expire after 10 minutes
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    // TODO: Store the OTP securely in the database
+    // We will add this when creating the password reset model.
+
+    await sendEmail(
+      user.email,
+      "NovaStore Password Reset OTP",
+      `Your password reset OTP is: ${otp}. This OTP will expire in 10 minutes.`,
+    );
+    res.status(constants.OK).json({
+      message:
+        "If an account exists with this email, a verification code has been sent.",
     });
   } catch (error) {
     // Convert Yup validation errors into our standard AppError

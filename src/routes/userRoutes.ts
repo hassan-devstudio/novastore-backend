@@ -7,6 +7,7 @@ import {
   updateUser,
   getCurrentUser,
   changePassword,
+  forgotPassword,
 } from "../controllers/userController.js";
 import validateToken from "../middleware/validateTokenHandler.js";
 
@@ -40,5 +41,8 @@ router.get("/me", validateToken, getCurrentUser);
 
 // change password
 router.patch("/change-password", validateToken, changePassword);
+
+// forgot-password
+router.post("/forgotPassword", forgotPassword);
 
 export default router;

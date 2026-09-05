@@ -46,3 +46,10 @@ export const changePasswordSchema = yup.object({
     .matches(/[0-9]/, "New password must contain a number")
     .required("New password is required"),
 });
+
+export const forgotPasswordSchema = yup.object({
+  email: yup
+    .string()
+    .email("Enter a valid email address")
+    .required("Email is required"),
+});
