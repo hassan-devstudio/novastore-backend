@@ -28,4 +28,7 @@ export default {
 
   // 500: An unexpected server-side error occurred
   SERVER_ERROR: 500,
+
+  // AL-READY EXIST
+  CONFLICT: 409,
 };
