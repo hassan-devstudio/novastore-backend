@@ -117,3 +117,115 @@ export const createProduct = async (
     return next(error);
   }
 };
+
+/**
+ * Get products
+ *
+ * GET /api/products
+ *
+ * Query params:
+ * search, category, minPrice, maxPrice, sort, page, limit
+ */
+/**
+ * Get products
+ *
+ * GET /api/products
+ *
+ * Query params:
+ * search, category, minPrice, maxPrice, sort, page, limit
+ */
+
+export const getProducts = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // Get query parameters from the URL
+    const {
+      search,
+      category,
+      minPrice,
+      maxPrice,
+      sort = "newest",
+      page = "1",
+      limit = "10",
+    } = req.query;
+
+    // Convert page and limit to numbers
+    const currentPage = Number(page);
+    const pageLimit = Number(limit);
+
+    // Calculate how many products to skip
+    const skip = (currentPage - 1) * pageLimit;
+
+    // Create an empty filter object
+    const filter: Record<string, any> = {};
+
+    // Search by product name or description
+    if (search) {
+      filter.$text = { $search: String(search) };
+    }
+
+    // Filter by category
+    if (category) {
+      filter.category = String(category).toLowerCase().trim();
+    }
+
+    // Filter by price range
+    if (minPrice || maxPrice) {
+      filter.price = {};
+
+      if (minPrice) {
+        filter.price.$gte = Number(minPrice);
+      }
+
+      if (maxPrice) {
+        filter.price.$lte = Number(maxPrice);
+      }
+    }
+
+    // Define sorting options
+    const sortOptions: Record<string, Record<string, 1 | -1>> = {
+      newest: { createdAt: -1 },
+      oldest: { createdAt: 1 },
+      priceLowToHigh: { price: 1 },
+      priceHighToLow: { price: -1 },
+      nameAZ: { name: 1 },
+      nameZA: { name: -1 },
+    };
+
+    // Get the requested sort or use newest by default
+    const sortQuery = sortOptions[String(sort)] || sortOptions.newest;
+
+    // Get products and total count
+    const products = await Product.find(filter)
+      .sort(sortQuery)
+      .skip(skip)
+      .limit(pageLimit)
+      .lean();
+
+    const totalProducts = await Product.countDocuments(filter);
+
+    // Calculate total pages
+    const totalPages = Math.ceil(totalProducts / pageLimit);
+
+    // Send response
+    res.status(constants.OK).json({
+      success: true,
+      message: "Products fetched successfully",
+      data: products,
+      pagination: {
+        page: currentPage,
+        limit: pageLimit,
+        totalProducts,
+        totalPages,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
+      },
+    });
+  } catch (error) {
+    // Pass errors to the global error handler
+    next(error);
+  }
+};
