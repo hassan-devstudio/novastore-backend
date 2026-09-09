@@ -4,7 +4,10 @@ import Product from "../models/productModel.js";
 import generateSlug from "../utils/generateSlug.js";
 import AppError from "../utils/AppError.js";
 import constants from "../constants/constants.js";
-import { createProductSchema } from "../validators/productValidator.js";
+import {
+  createProductSchema,
+  productIdParamSchema,
+} from "../validators/productValidator.js";
 
 const validationError = (error: yup.ValidationError) =>
   new AppError(
@@ -227,5 +230,54 @@ export const getProducts = async (
   } catch (error) {
     // Pass errors to the global error handler
     next(error);
+  }
+};
+
+/**
+ * Get a single product by ID
+ *
+ * GET /api/products/:id
+ */
+export const getProductById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    // Validate the product ID from the URL parameters
+    const { id } = await productIdParamSchema.validate(req.params, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+    // Find the product by ID
+    const product = await Product.findOne({ _id: id, status: "active" })
+      .select(
+        "name slug description price compareAtPrice stock category images status isFeatured createdAt updatedAt",
+      )
+      .lean();
+    // Return not found if the product does not exist
+    if (!product) {
+      return next(new AppError("Product not found", constants.NOT_FOUND));
+    }
+    // Return the product
+    res.status(constants.OK).json({
+      success: true,
+      message: "Product fetched successfully",
+      data: product,
+    });
+    // Return not found if the product does not exist
+  } catch (error) {
+    // Handle Yup validation errors
+    if (error instanceof yup.ValidationError) {
+      return next(
+        new AppError(
+          `Validation Error: ${error.errors.join(", ")}`,
+          constants.BAD_REQUEST,
+        ),
+      );
+    }
+
+    // Pass all other errors to the global error handler
+    return next(error);
   }
 };

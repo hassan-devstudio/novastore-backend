@@ -6,7 +6,7 @@ import * as yup from "yup";
  * Yup is responsible for validating data
  * coming from the client/API request.
  */
-const createProductSchema = yup
+export const createProductSchema = yup
   .object({
     /**
      * Product name
@@ -143,4 +143,16 @@ const createProductSchema = yup
     },
   );
 
-export { createProductSchema };
+/**
+ * Validate product ID route parameter
+ */
+export const productIdParamSchema = yup.object({
+  id: yup
+    .string()
+    .trim()
+    .required("Product ID is required")
+    .matches(
+      /^[0-9a-fA-F]{24}$/,
+      "Product ID must be a valid MongoDB ObjectId",
+    ),
+});
