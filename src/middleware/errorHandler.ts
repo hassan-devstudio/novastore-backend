@@ -30,12 +30,20 @@ const errorHandler = (
       .map((item) => item.message)
       .join(", ");
   }
+  // Handle MongoDB duplicate key errors (e.g., duplicate SKU, slug, or other unique fields)
+
+  if (err.code === 11000) {
+    statusCode = constants.CONFLICT;
+    const field = Object.keys(err.keyPattern ?? {})[0] ?? "resource";
+    err.message = `A ${field} already exists`;
+  }
 
   const titleByStatus: Record<number, string> = {
     [constants.BAD_REQUEST]: "Validation Failed",
     [constants.UNAUTHORIZED]: "Unauthorized",
     [constants.FORBIDDEN]: "Forbidden",
     [constants.NOT_FOUND]: "Not Found",
+    [constants.CONFLICT]: "Conflict",
     [constants.SERVER_ERROR]: "Server Error",
   };
 

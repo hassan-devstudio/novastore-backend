@@ -1,4 +1,4 @@
-const yup = require("yup");
+import * as yup from "yup";
 
 /**
  * Validation schema for creating a product.
@@ -127,7 +127,7 @@ const createProductSchema = yup
   .test(
     "compare-at-price",
     "Compare-at price must be greater than the current price",
-    (product) => {
+    (product: { compareAtPrice?: number | null; price?: number }) => {
       if (
         product.compareAtPrice === null ||
         product.compareAtPrice === undefined
@@ -143,6 +143,4 @@ const createProductSchema = yup
     },
   );
 
-module.exports = {
-  createProductSchema,
-};
+export { createProductSchema };

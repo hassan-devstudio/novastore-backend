@@ -1,24 +1,46 @@
 import { Request, Response, NextFunction } from "express";
+import * as yup from "yup";
 import Product from "../models/productModel.js";
 import generateSlug from "../utils/generateSlug.js";
 import AppError from "../utils/AppError.js";
 import constants from "../constants/constants.js";
+import { createProductSchema } from "../validators/productValidator.js";
+
+const validationError = (error: yup.ValidationError) =>
+  new AppError(
+    `Validation Error: ${error.errors.join(", ")}`,
+    constants.BAD_REQUEST,
+  );
 
 /**
  * Create a new product
  *
  * POST /api/products
  */
-const createProduct = async (
+
+export const createProduct = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
-    /**
-     * At this point, req.body has already
-     * passed Yup validation.
-     */
+    // Check if the authenticated user's ID is available
+    if (!req.user?.userId) {
+      return next(
+        new AppError(
+          "User is not authorized or token is missing",
+          constants.UNAUTHORIZED,
+        ),
+      );
+    }
+
+    // Validate request body and remove unknown fields
+    const validatedData = await createProductSchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    // Extract validated product data from the request
     const {
       name,
       description,
@@ -30,28 +52,18 @@ const createProduct = async (
       images,
       status,
       isFeatured,
-    } = req.body || {};
-    /**
-     * --------------------------------------------------
-     * 1. Check whether SKU already exists
-     * --------------------------------------------------
-     *
-     * SKU should be unique because it normally
-     * identifies a specific product/inventory item.
-     */
-    const normalizedSku = sku.toUpperCase();
+    } = validatedData;
+
+    // Normalize SKU for consistent storage and duplicate checking
+    const normalizedSku = sku.trim().toUpperCase();
+
+    // Check if a product with the same SKU already exists
     const existingProduct = await Product.findOne({
       sku: normalizedSku,
     }).lean();
 
+    // Return conflict error if the SKU is already in use
     if (existingProduct) {
-      return res.status(409).json({
-        success: false,
-        message: "A product with this SKU already exists",
-      });
-    }
-
-    if (!existingProduct) {
       return next(
         new AppError(
           "A product with this SKU already exists",
@@ -59,63 +71,21 @@ const createProduct = async (
         ),
       );
     }
-    /**
-     * --------------------------------------------------
-     * 2. Generate product slug
-     * --------------------------------------------------
-     *
-     * We don't trust the client to provide a slug.
-     * The server generates it from the product name.
-     */
+
+    // Generate a URL-friendly slug from the product name
     const baseSlug = generateSlug(name);
 
+    // Start with the base slug and prepare a counter for duplicates
     let slug = baseSlug;
     let counter = 1;
 
-    /**
-     * Ensure the slug is unique.
-     *
-     * Example:
-     *
-     * wireless-headphones
-     * wireless-headphones-1
-     * wireless-headphones-2
-     */
+    // Check if the slug already exists and add a number if needed
     while (await Product.exists({ slug })) {
       slug = `${baseSlug}-${counter}`;
-      counter++;
-    }
-    /**
-     * --------------------------------------------------
-     * 3. Business validation
-     * --------------------------------------------------
-     *
-     * compareAtPrice is optional.
-     *
-     * If it exists, it must be higher than
-     * the actual selling price.
-     */
-    if (
-      compareAtPrice !== null &&
-      compareAtPrice !== undefined &&
-      compareAtPrice <= price
-    ) {
-      return next(
-        new AppError(
-          "Compare-at price must be greater than the current price",
-          constants.BAD_REQUEST,
-        ),
-      );
+      counter += 1;
     }
 
-    /**
-     * --------------------------------------------------
-     * 4. Create product
-     * --------------------------------------------------
-     *
-     * req.user.id comes from your authentication
-     * middleware.
-     */
+    // Create and save the new product in MongoDB
     const product = await Product.create({
       name,
       slug,
@@ -124,23 +94,26 @@ const createProduct = async (
       compareAtPrice,
       stock,
       sku: normalizedSku,
-      category,
+      category: category.trim().toLowerCase(),
       images,
       status,
       isFeatured,
-
-      // Authenticated user who created this product
       createdBy: req.user.userId,
     });
-    /**
-     * --------------------------------------------------
-     * 5. Return successful response
-     * --------------------------------------------------
-     */
-    return res.status(constants.CREATED).json({
+
+    // Return successful response with the created product
+    res.status(constants.CREATED).json({
       success: true,
       message: "Product created successfully",
       data: product,
     });
-  } catch (error) {}
+  } catch (error) {
+    // Handle Yup validation errors separately
+    if (error instanceof yup.ValidationError) {
+      return next(validationError(error));
+    }
+
+    // Pass all other errors to the global error handler
+    return next(error);
+  }
 };

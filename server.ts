@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import errorHandler from "./src/middleware/errorHandler.js";
 import connectDB from "./src/config/dbConnect.js";
 import userRoutes from "./src/routes/userRoutes.js";
+import productRoutes from "./src/routes/productRoutes.js";
 import AppError from "./src/utils/AppError.js";
 
 // Load environment variables before any configuration
@@ -19,6 +20,7 @@ app.use(express.json());
 // ROUTES
 // ==========================
 app.use("/api/users", userRoutes);
+app.use("/api/products", productRoutes);
 
 // ==========================
 // ERROR HANDLING MIDDLEWARE
