@@ -8,6 +8,6 @@ import validateToken from "../middleware/validateTokenHandler.js";
 const router = express.Router();
 
 router.post("/", validateToken, createProduct);
-router.get("/products", validateToken, getProducts);
+router.get("/", validateToken, getProducts);
 
 export default router;
