@@ -233,6 +233,18 @@ export const updateProductSchema = yup
   );
 
 /**
+ * Validation schema for updating product stock.
+ */
+export const updateStockSchema = yup.object({
+  stock: yup
+    .number()
+    .typeError("Stock must be a number")
+    .integer("Stock must be an integer")
+    .min(0, "Stock cannot be negative")
+    .required("Stock is required"),
+});
+
+/**
  * Validate product ID route parameter
  */
 export const productIdParamSchema = yup.object({

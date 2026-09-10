@@ -8,6 +8,7 @@ import {
   createProductSchema,
   productIdParamSchema,
   updateProductSchema,
+  updateStockSchema,
 } from "../validators/productValidator.js";
 
 const validationError = (error: yup.ValidationError) =>
@@ -345,6 +346,53 @@ export const updateProduct = async (
       success: true,
       message: "Product updated successfully",
       data: product,
+    });
+  } catch (error) {
+    if (error instanceof yup.ValidationError) {
+      return next(validationError(error));
+    }
+    return next(error);
+  }
+};
+
+/**
+ * Update stock for a product by ID
+ *
+ * PATCH /api/products/:id/stock
+ */
+export const updateStock = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // Validate the product ID from route params
+    const { id } = await productIdParamSchema.validate(req.params, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    // Validate the stock value from the request body
+    const { stock } = await updateStockSchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    // Update only the stock field and return the updated document
+    const product = await Product.findByIdAndUpdate(
+      id,
+      { stock },
+      { new: true },
+    );
+
+    if (!product) {
+      return next(new AppError("Product not found", constants.NOT_FOUND));
+    }
+
+    res.status(constants.OK).json({
+      success: true,
+      message: "Product stock updated successfully",
+      data: { _id: product._id, stock: product.stock },
     });
   } catch (error) {
     if (error instanceof yup.ValidationError) {
