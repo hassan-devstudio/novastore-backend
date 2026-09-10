@@ -144,6 +144,95 @@ export const createProductSchema = yup
   );
 
 /**
+ * Validation schema for updating a product (all fields optional).
+ */
+export const updateProductSchema = yup
+  .object({
+    name: yup
+      .string()
+      .trim()
+      .min(2, "Product name must be at least 2 characters")
+      .max(150, "Product name cannot exceed 150 characters")
+      .optional(),
+
+    description: yup
+      .string()
+      .trim()
+      .min(20, "Product description must be at least 20 characters")
+      .max(5000, "Product description cannot exceed 5000 characters")
+      .optional(),
+
+    price: yup
+      .number()
+      .typeError("Price must be a number")
+      .min(0, "Price cannot be negative")
+      .optional(),
+
+    compareAtPrice: yup
+      .number()
+      .typeError("Compare-at price must be a number")
+      .min(0, "Compare-at price cannot be negative")
+      .nullable()
+      .optional(),
+
+    stock: yup
+      .number()
+      .typeError("Stock must be a number")
+      .integer("Stock must be an integer")
+      .min(0, "Stock cannot be negative")
+      .optional(),
+
+    sku: yup
+      .string()
+      .trim()
+      .min(2, "SKU must be at least 2 characters")
+      .max(50, "SKU cannot exceed 50 characters")
+      .optional(),
+
+    category: yup
+      .string()
+      .trim()
+      .min(2, "Category must be at least 2 characters")
+      .max(100, "Category cannot exceed 100 characters")
+      .optional(),
+
+    images: yup
+      .array()
+      .of(
+        yup
+          .string()
+          .url("Each image must be a valid URL")
+          .required("Image URL is required"),
+      )
+      .max(10, "A product cannot have more than 10 images")
+      .optional(),
+
+    status: yup
+      .string()
+      .oneOf(
+        ["draft", "active", "archived"],
+        "Status must be draft, active, or archived",
+      )
+      .optional(),
+
+    isFeatured: yup.boolean().optional(),
+  })
+  .test(
+    "compare-at-price",
+    "Compare-at price must be greater than the current price",
+    (product: { compareAtPrice?: number | null; price?: number }) => {
+      if (
+        product.compareAtPrice === null ||
+        product.compareAtPrice === undefined
+      ) {
+        return true;
+      }
+      if (product.price === undefined) return true;
+      return product.compareAtPrice > product.price;
+    },
+  );
+
+/**
  * Validate product ID route parameter
  */
 export const productIdParamSchema = yup.object({

@@ -7,6 +7,7 @@ import constants from "../constants/constants.js";
 import {
   createProductSchema,
   productIdParamSchema,
+  updateProductSchema,
 } from "../validators/productValidator.js";
 
 const validationError = (error: yup.ValidationError) =>
@@ -267,17 +268,126 @@ export const getProductById = async (
     });
     // Return not found if the product does not exist
   } catch (error) {
-    // Handle Yup validation errors
     if (error instanceof yup.ValidationError) {
-      return next(
-        new AppError(
-          `Validation Error: ${error.errors.join(", ")}`,
-          constants.BAD_REQUEST,
-        ),
-      );
+      return next(validationError(error));
+    }
+    return next(error);
+  }
+};
+
+/**
+ * Update a product by ID (partial update)
+ *
+ * PATCH /api/products/:id
+ */
+export const updateProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { id } = await productIdParamSchema.validate(req.params, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    const validatedData = await updateProductSchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    const product = await Product.findById(id);
+
+    if (!product) {
+      return next(new AppError("Product not found", constants.NOT_FOUND));
     }
 
-    // Pass all other errors to the global error handler
+    // Handle SKU uniqueness if SKU is being updated
+    if (validatedData.sku) {
+      const normalizedSku = validatedData.sku.trim().toUpperCase();
+      const skuConflict = await Product.findOne({
+        sku: normalizedSku,
+        _id: { $ne: id },
+      }).lean();
+
+      if (skuConflict) {
+        return next(
+          new AppError("A product with this SKU already exists", constants.CONFLICT),
+        );
+      }
+
+      validatedData.sku = normalizedSku;
+    }
+
+    // Regenerate slug if name is changing
+    if (validatedData.name) {
+      const baseSlug = generateSlug(validatedData.name);
+      let slug = baseSlug;
+      let counter = 1;
+
+      while (await Product.exists({ slug, _id: { $ne: id } })) {
+        slug = `${baseSlug}-${counter}`;
+        counter += 1;
+      }
+
+      (product as any).slug = slug;
+    }
+
+    // Normalize category if provided
+    if (validatedData.category) {
+      validatedData.category = validatedData.category.trim().toLowerCase();
+    }
+
+    Object.assign(product, validatedData);
+    await product.save();
+
+    res.status(constants.OK).json({
+      success: true,
+      message: "Product updated successfully",
+      data: product,
+    });
+  } catch (error) {
+    if (error instanceof yup.ValidationError) {
+      return next(validationError(error));
+    }
+    return next(error);
+  }
+};
+
+/**
+ * Soft delete a product by ID (sets status to "archived")
+ *
+ * DELETE /api/products/:id
+ */
+export const deleteProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { id } = await productIdParamSchema.validate(req.params, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    const product = await Product.findByIdAndUpdate(
+      id,
+      { status: "archived" },
+      { new: true },
+    );
+
+    if (!product) {
+      return next(new AppError("Product not found", constants.NOT_FOUND));
+    }
+
+    res.status(constants.OK).json({
+      success: true,
+      message: "Product deleted successfully",
+    });
+  } catch (error) {
+    if (error instanceof yup.ValidationError) {
+      return next(validationError(error));
+    }
     return next(error);
   }
 };
